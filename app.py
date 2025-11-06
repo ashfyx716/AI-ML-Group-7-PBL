@@ -1,33 +1,47 @@
 import streamlit as st
 import numpy as np
-import matplotlib.pyplot as plt
-import time
 from queue import PriorityQueue
+from PIL import Image
 
+# --- Page Config ---
 st.set_page_config(page_title="Maze Solver", layout="centered")
-
 st.title("🧩 Maze Solver - BFS | DFS | A*")
 
+# --- Grid Setup ---
 ROWS, COLS = 20, 20
-grid = np.zeros((ROWS, COLS))
-
 start = (0, 0)
 end = (ROWS - 1, COLS - 1)
-walls = st.session_state.get("walls", set())
 
-# --- Grid Visualization ---
+# Use Streamlit session state for persistence
+if "walls" not in st.session_state:
+    st.session_state.walls = set()
+
+walls = st.session_state.walls
+
+# --- Functions ---
 def draw_grid(path=[], visited=[]):
+    """Draws the maze grid with proper sharp pixels."""
     img = np.ones((ROWS, COLS, 3))
-    for (r, c) in walls:
-        img[r, c] = [0, 0, 0]   # wall = black
-    for (r, c) in visited:
-        img[r, c] = [0.3, 0.6, 1]  # visited = blue
-    for (r, c) in path:
-        img[r, c] = [1, 0.5, 0]   # path = orange
-    img[start] = [0, 1, 0]        # start = green
-    img[end] = [1, 0, 0]          # end = red
-    st.image(img, width=400, caption="Maze Grid")
 
+    # Walls
+    for (r, c) in walls:
+        img[r, c] = [0, 0, 0]  # black
+    # Visited
+    for (r, c) in visited:
+        img[r, c] = [0.3, 0.6, 1]  # light blue
+    # Path
+    for (r, c) in path:
+        img[r, c] = [1, 0.5, 0]  # orange
+    # Start / End
+    img[start] = [0, 1, 0]  # green
+    img[end] = [1, 0, 0]    # red
+
+    # Convert to PIL for sharp scaling
+    img = (img * 255).astype(np.uint8)
+    img = Image.fromarray(img)
+    img = img.resize((400, 400), resample=Image.NEAREST)
+
+    st.image(img, caption="Maze Grid", use_container_width=False)
 
 def get_neighbors(pos):
     r, c = pos
@@ -96,8 +110,27 @@ def astar(start, end):
         cur = came_from[cur]
     return path[::-1], came_from
 
-# --- UI Controls ---
+# --- Sidebar Controls ---
+st.sidebar.header("🧱 Maze Controls")
+
+# Add walls manually via coordinates
+r = st.sidebar.number_input("Row (0–19):", min_value=0, max_value=19, value=0)
+c = st.sidebar.number_input("Col (0–19):", min_value=0, max_value=19, value=0)
+
+if st.sidebar.button("Add Wall"):
+    if (r, c) != start and (r, c) != end:
+        walls.add((r, c))
+        st.session_state.walls = walls
+
+if st.sidebar.button("Reset Maze"):
+    st.session_state.walls = set()
+    walls.clear()
+    st.sidebar.success("Maze reset successfully!")
+
+# --- Algorithm Selection ---
 algo = st.selectbox("Select Algorithm", ["BFS", "DFS", "A*"])
+
+# --- Run Algorithm ---
 if st.button("Solve Maze"):
     if algo == "BFS":
         path, visited = bfs(start, end)
@@ -107,7 +140,7 @@ if st.button("Solve Maze"):
         path, visited = astar(start, end)
 
     draw_grid(path, visited)
-    st.success(f"{algo} found path of length {len(path)}")
+    st.success(f"{algo} found path of length {len(path)} ✅")
 
 else:
     draw_grid()
